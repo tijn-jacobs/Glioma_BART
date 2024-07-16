@@ -9,7 +9,6 @@ data1 <- read.csv("~/Desktop/Amsterdam UMC/Data Research Camp 2024/data1.csv")[,
 data2 <- read.csv("~/Desktop/Amsterdam UMC/Data Research Camp 2024/data2.csv")[,-(1:2)]
 data3 <- read.csv("~/Desktop/Amsterdam UMC/Data Research Camp 2024/data3.csv")[,-(1:2)]
 
-
 # Function to create interaction matrix
 create_interaction_matrix <- function(data, interaction_col) {
   data_df <- as.data.frame(data)
@@ -26,11 +25,6 @@ create_interaction_matrix <- function(data, interaction_col) {
   return(new_data_matrix)
 }
 
-# Loading data
-data1 <- read.csv("~/Desktop/Amsterdam UMC/Data Research Camp 2024/data1.csv")[,-(1:2)]
-data2 <- read.csv("~/Desktop/Amsterdam UMC/Data Research Camp 2024/data2.csv")[,-(1:2)]
-data3 <- read.csv("~/Desktop/Amsterdam UMC/Data Research Camp 2024/data3.csv")[,-(1:2)]
-
 # Columns
 treat_col <- c("radiation_treatment_adjuvant", "targeted_molecular_therapy", "both_treatments")
 protein_col <- c("ACVRL1.R.C", "Src_pY416.R.C", "HSP70.R.C", "HER2_pY1248.R.C", "PAI.1.M.E",
@@ -41,13 +35,13 @@ protein_col <- c("ACVRL1.R.C", "Src_pY416.R.C", "HSP70.R.C", "HER2_pY1248.R.C", 
                  "ER.alpha.R.V", "C.Raf.R.V", "CD31.M.V", "Ku80.R.C", "Bcl.2.M.V", "GSK3.alpha.beta.M.V")
 
 # Function to fit BART and CART models
-fit_models <- function(data, response_col, predictors, interaction_col = FALSE) {
+fit_models <- function(data, ndpost, ntree, seed, response_col, predictors, interaction_col = FALSE) {
   data_tree <- data[, predictors]
   response <- data[[response_col]]
   
   # Fit BART model
-  set.seed(1)
-  bart_model <- pbart(x.train = data_tree, y.train = response, ndpost = 5000, ntree = 1, base = 0.9)
+  set.seed(seed)
+  bart_model <- pbart(x.train = data_tree, y.train = response, ndpost = ndpost, ntree = ntree, base = 0.9)
   var_stable <- bart_model$varcount.mean
   barplot(var_stable, main = paste(response_col, "vs. else"))
   
@@ -60,43 +54,54 @@ fit_models <- function(data, response_col, predictors, interaction_col = FALSE) 
   var_importance <- cart_model$variable.importance
   barplot(var_importance, main = paste("Variable Importance (CART) for", response_col), col = "blue", las = 2)
   
-  # Fit BART model with interactions if interaction_col is provided
-  if (interaction_col) {
+  # Fit BART and CART models with interactions if interaction_col is provided
+  if (interaction_col != FALSE) {
     data_tree_int <- create_interaction_matrix(data_tree, interaction_col)
-    bart_model_int <- pbart(x.train = data_tree_int, y.train = response, ndpost = 5000, ntree = 1, base = 0.9)
+    bart_model_int <- pbart(x.train = data_tree_int, y.train = response, ndpost = ndpost, ntree = ntree, base = 0.9)
     var_stable_int <- bart_model_int$varcount.mean
     barplot(var_stable_int, main = paste(response_col, "vs. else (with interactions)"))
+    
+    # Fit CART model with interactions
+    data_cart_int <- data.frame(data_tree_int, response = response)
+    cart_model_int <- rpart(response ~ ., data = data_cart_int, method = "class")
+    rpart.plot(cart_model_int, main = paste("CART with Interactions for", response_col))
+    
+    # Variable importance from CART model with interactions
+    var_importance_int <- cart_model_int$variable.importance
+    barplot(var_importance_int, main = paste("Variable Importance (CART with Interactions) for", response_col), col = "blue", las = 2)
   }
 }
 
 # Progressive vs else (WITHOUT interaction terms)
-fit_models(data1, 
+fit_models(data1, ndpost = 5000, ntree = 1, seed = 42, 
            "progressive_disease", 
            colnames(data1)[!colnames(data1) %in% c("treatment_outcome_first_course", "as.factor.myRsp.", "radiation_treatment_adjuvant", "targeted_molecular_therapy", "both_treatments", "progressive_disease")],
            interaction_col = FALSE)
 
 # Progressive vs else (WITH interaction terms)
-fit_models(data1, 
+fit_models(data1, ndpost = 5000, ntree = 1, seed = 42, 
            "progressive_disease", 
            colnames(data1)[!colnames(data1) %in% c("treatment_outcome_first_course", "as.factor.myRsp.", "radiation_treatment_adjuvant", "targeted_molecular_therapy", "both_treatments", "progressive_disease")],
-           interaction_col = TRUE)
+           interaction_col = "newTRT")
 
 # Stable disease vs else (WITHOUT interaction terms)
-fit_models(data2, 
+fit_models(data2, ndpost = 5000, ntree = 1, seed = 42, 
            "stable_disease", 
            colnames(data2)[!colnames(data2) %in% c("treatment_outcome_first_course", "as.factor.myRsp.", "radiation_treatment_adjuvant", "targeted_molecular_therapy", "both_treatments", "progressive_disease", "stable_disease")],
            interaction_col = FALSE)
 
 # Stable disease vs else (WITH interaction terms)
-fit_models(data2, 
+fit_models(data2, ndpost = 5000, ntree = 1, seed = 42, 
            "stable_disease", 
            colnames(data2)[!colnames(data2) %in% c("treatment_outcome_first_course", "as.factor.myRsp.", "radiation_treatment_adjuvant", "targeted_molecular_therapy", "both_treatments", "progressive_disease", "stable_disease")],
-           interaction_col = TRUE)
+           interaction_col = "newTRT")
 
 # Partial remission vs else (WITHOUT interaction terms)
-fit_models(data3, "partial_remission", colnames(data3)[!colnames(data3) %in% c("treatment_outcome_first_course", "as.factor.myRsp.", "radiation_treatment_adjuvant", "targeted_molecular_therapy", "both_treatments", "progressive_disease", "stable_disease", "partial_remission")],
+fit_models(data3, ndpost = 5000, ntree = 1, seed = 42, 
+           "partial_remission", colnames(data3)[!colnames(data3) %in% c("treatment_outcome_first_course", "as.factor.myRsp.", "radiation_treatment_adjuvant", "targeted_molecular_therapy", "both_treatments", "progressive_disease", "stable_disease", "partial_remission")],
            interaction_col = FALSE)
 
 # Partial remission vs else (WITH interaction terms)
-fit_models(data3, "partial_remission", colnames(data3)[!colnames(data3) %in% c("treatment_outcome_first_course", "as.factor.myRsp.", "radiation_treatment_adjuvant", "targeted_molecular_therapy", "both_treatments", "progressive_disease", "stable_disease", "partial_remission")],
-           interaction_col = TRUE)
+fit_models(data3, ndpost = 5000, ntree = 1, seed = 42, 
+           "partial_remission", colnames(data3)[!colnames(data3) %in% c("treatment_outcome_first_course", "as.factor.myRsp.", "radiation_treatment_adjuvant", "targeted_molecular_therapy", "both_treatments", "progressive_disease", "stable_disease", "partial_remission")],
+           interaction_col = "newTRT")
