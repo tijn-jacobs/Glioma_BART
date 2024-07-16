@@ -5,10 +5,9 @@ library(ggplot2)
 library(rpart)
 library(rpart.plot)
 
-
-
-
-
+data1 <- read.csv("~/Desktop/Amsterdam UMC/Data Research Camp 2024/data1.csv")
+data2 <- read.csv("~/Desktop/Amsterdam UMC/Data Research Camp 2024/data2.csv")
+data3 <- read.csv("~/Desktop/Amsterdam UMC/Data Research Camp 2024/data3.csv")
 
 
 ##### First model (complete remission) #####
@@ -22,6 +21,7 @@ pred1 <- as.matrix(pred1)
 # # Fit the BART
 bart_model_complete <- pbart(x.train = pred1, y.train = data1$complete_remission,
                               ndpost = 5000, ntree = 1, base=.5)
+
 var_complete <- bart_model_complete$varcount.mean
 
 # Fit the CART model
@@ -138,66 +138,4 @@ rpart.plot(cart_model_stable, main = "Stable vs. rest (w/ interaction terms)")
 
 
 
-
-
-
-# Install and load necessary packages
-if (!require("bartMachine")) install.packages("bartMachine")
-library(bartMachine)
-
-# Assuming pred1 and data1$complete_remission are already defined and prepared
-
-# Fit the BART model
-set_bart_machine_num_cores(1) # Set number of cores to 1 for reproducibility
-bart_model <- bartMachine(X = pred1, y = data1$complete_remission, num_trees = 1, num_burn_in = 1000, num_iterations_after_burn_in = 5000)
-
-# Print the summary of the model
-print(bart_model)
-
-# Plot the variable importance
-investigate_var_importance(bart_model)
-
-# If you want to plot the tree, you will need to use internal functions
-# Note: BART models are ensemble models, and plotting a single tree might not represent the entire model well.
-
-# Extract and plot a single tree (for the first iteration)
-single_tree <- bart_model$java_bart_machine$bart_trees$`0`
-
-# Plot the single tree using a simple plot function
-plot(single_tree)
-text(single_tree, use.n = TRUE, all = TRUE, cex = 0.8)
-
-
-
-
-
-
-
-
-
-
-
-# Install and load necessary packages
-if (!require("rpart")) install.packages("rpart")
-library(rpart)
-
-if (!require("rpart.plot")) install.packages("rpart.plot")
-library(rpart.plot)
-
-# Assuming pred1 is your existing matrix and data1 is the data frame containing 'newTRT'
-# Prepare the data by creating a data frame
-data_combined <- data.frame(newTRT = data1$newTRT, pred1)
-
-# Fit the CART model
-cart_model_confounders <- rpart(newTRT ~ ., data = data.frame(pred1), method = "class")
-
-# Print the summary of the model
-summary(cart_model_confounders)
-
-# Plot the tree
-plot(cart_model_confounders)
-text(cart_model_confounders, use.n = TRUE, all = TRUE, cex = 0.8)
-
-# Optional: Better plot with rpart.plot
-rpart.plot(cart_model_confounders, type = 2, extra = 104, under = TRUE, faclen = 0)
 
